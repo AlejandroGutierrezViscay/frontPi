@@ -64,7 +64,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
         email: 'test$timestamp@fincasmart.com',
         telefono: '3001234567',
         password: 'password123',
-        apellido: 'Prueba',
       );
 
       setState(() {

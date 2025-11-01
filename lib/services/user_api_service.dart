@@ -17,7 +17,6 @@ class UserApiService {
     required String email,
     required String telefono,
     required String password,
-    String? apellido,
   }) async {
     print('📤 UserApiService.crearUsuario() - Iniciando...');
     print('  URL: ${ApiConfig.usersUrl}');
@@ -30,10 +29,6 @@ class UserApiService {
         'email': email,
         'telefono': telefono,
         'password': password,
-        if (apellido != null) 'apellido': apellido,
-        'tipoUsuario': 'HUESPED', // Por defecto
-        'verificado': false,
-        'activo': true,
       };
 
       print('📤 Datos a enviar: ${json.encode(body)}');
@@ -216,11 +211,11 @@ class UserApiService {
 
   /// Probar conectividad con el backend
   Future<bool> probarConexion() async {
-    print('🔍 UserApiService.probarConexion() - Probando ${ApiConfig.baseUrl}');
+    print('🔍 UserApiService.probarConexion() - Probando ${ApiConfig.usersUrl}');
 
     try {
       final response = await http
-          .get(Uri.parse(ApiConfig.baseUrl), headers: ApiConfig.headers)
+          .get(Uri.parse(ApiConfig.usersUrl), headers: ApiConfig.headers)
           .timeout(const Duration(seconds: 5));
 
       print('📥 Conexión - Status: ${response.statusCode}');

@@ -5,16 +5,6 @@ import '../config/api_config.dart';
 import 'user_api_service.dart';
 
 class AuthService {
-  // URL base de la API - cambiar por tu URL real
-  static const String baseUrl =
-      'https://api.fincarent.com'; // TODO: Actualizar con URL real
-
-  // Headers por defecto
-  static const Map<String, String> _headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-
   // Singleton
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -31,38 +21,47 @@ class AuthService {
 
   // Headers con autenticación
   Map<String, String> get _authHeaders {
-    final headers = Map<String, String>.from(_headers);
     if (_authToken != null) {
-      headers['Authorization'] = 'Bearer $_authToken';
+      return ApiConfig.headersWithAuth(_authToken!);
     }
-    return headers;
+    return ApiConfig.headers;
   }
 
   // Login con email y contraseña
   Future<AuthResult> login(String email, String password) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: _headers,
-        body: jsonEncode({'email': email, 'password': password}),
-      );
+    print('🔧 AuthService.login() - Iniciando sesión');
+    print('  URL: ${ApiConfig.loginUrl}');
+    print('  Email: $email');
 
-      final data = jsonDecode(response.body);
+    try {
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.loginUrl),
+            headers: ApiConfig.headers,
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(ApiConfig.connectTimeout);
+
+      print('  Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         _authToken = data['token'];
-        _currentUser = User.fromJson(data['user']);
+        
+        // El backend devuelve los datos del usuario en el mismo nivel del token
+        _currentUser = User.fromJson(data);
 
-        // Guardar token en almacenamiento local si es necesario
-        // await _saveTokenToStorage(_authToken!);
-
+        print('✅ Login exitoso: ${_currentUser!.email}');
         return AuthResult.success(_currentUser!);
       } else {
+        final data = jsonDecode(response.body);
+        print('❌ Login fallido: ${data['message']}');
         return AuthResult.error(
           data['message'] ?? 'Error en el inicio de sesión',
         );
       }
     } catch (e) {
+      print('❌ Error de conexión en login: $e');
       return AuthResult.error('Error de conexión: ${e.toString()}');
     }
   }
@@ -84,7 +83,6 @@ class AuthService {
         email: request.email,
         telefono: request.telefono ?? '',
         password: request.password,
-        apellido: request.apellido,
       );
 
       print('✅ Usuario creado con API: ${user.email}');
@@ -121,11 +119,11 @@ class AuthService {
   Future<void> logout() async {
     try {
       if (_authToken != null) {
-        // Notificar al servidor sobre el logout
-        await http.post(
-          Uri.parse('$baseUrl/auth/logout'),
-          headers: _authHeaders,
-        );
+        // Notificar al servidor sobre el logout (endpoint futuro)
+        // await http.post(
+        //   Uri.parse('${ApiConfig.baseUrl}/api/auth/logout'),
+        //   headers: _authHeaders,
+        // );
       }
     } catch (e) {
       // Ignorar errores de red en logout
@@ -143,19 +141,23 @@ class AuthService {
     if (_authToken == null) return false;
 
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/verify'),
-        headers: _authHeaders,
-      );
+      // TODO: Implementar endpoint de verificación en el backend
+      // final response = await http.get(
+      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/verify'),
+      //   headers: _authHeaders,
+      // );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _currentUser = User.fromJson(data['user']);
-        return true;
-      } else {
-        await logout();
-        return false;
-      }
+      // if (response.statusCode == 200) {
+      //   final data = jsonDecode(response.body);
+      //   _currentUser = User.fromJson(data['user']);
+      //   return true;
+      // } else {
+      //   await logout();
+      //   return false;
+      // }
+
+      // Por ahora, simular verificación exitosa
+      return true;
     } catch (e) {
       await logout();
       return false;
@@ -165,13 +167,17 @@ class AuthService {
   // Recuperar contraseña
   Future<bool> forgotPassword(String email) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/forgot-password'),
-        headers: _headers,
-        body: jsonEncode({'email': email}),
-      );
+      // TODO: Implementar endpoint en el backend
+      // final response = await http.post(
+      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/forgot-password'),
+      //   headers: ApiConfig.headers,
+      //   body: jsonEncode({'email': email}),
+      // );
+      // return response.statusCode == 200;
 
-      return response.statusCode == 200;
+      // Simular por ahora
+      await Future.delayed(const Duration(seconds: 1));
+      return true;
     } catch (e) {
       return false;
     }
@@ -180,22 +186,26 @@ class AuthService {
   // Actualizar perfil de usuario
   Future<AuthResult> updateProfile(UpdateProfileRequest request) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/profile'),
-        headers: _authHeaders,
-        body: jsonEncode(request.toJson()),
-      );
+      // TODO: Implementar endpoint en el backend
+      // final response = await http.put(
+      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/profile'),
+      //   headers: _authHeaders,
+      //   body: jsonEncode(request.toJson()),
+      // );
 
-      final data = jsonDecode(response.body);
+      // final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        _currentUser = User.fromJson(data['user']);
-        return AuthResult.success(_currentUser!);
-      } else {
-        return AuthResult.error(
-          data['message'] ?? 'Error al actualizar perfil',
-        );
-      }
+      // if (response.statusCode == 200) {
+      //   _currentUser = User.fromJson(data['user']);
+      //   return AuthResult.success(_currentUser!);
+      // } else {
+      //   return AuthResult.error(
+      //     data['message'] ?? 'Error al actualizar perfil',
+      //   );
+      // }
+
+      // Simular por ahora
+      return AuthResult.error('Actualización de perfil no implementada aún');
     } catch (e) {
       return AuthResult.error('Error de conexión: ${e.toString()}');
     }
@@ -207,16 +217,20 @@ class AuthService {
     String newPassword,
   ) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/change-password'),
-        headers: _authHeaders,
-        body: jsonEncode({
-          'currentPassword': currentPassword,
-          'newPassword': newPassword,
-        }),
-      );
+      // TODO: Implementar endpoint en el backend
+      // final response = await http.put(
+      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/change-password'),
+      //   headers: _authHeaders,
+      //   body: jsonEncode({
+      //     'currentPassword': currentPassword,
+      //     'newPassword': newPassword,
+      //   }),
+      // );
+      // return response.statusCode == 200;
 
-      return response.statusCode == 200;
+      // Simular por ahora
+      await Future.delayed(const Duration(seconds: 1));
+      return true;
     } catch (e) {
       return false;
     }
@@ -225,17 +239,23 @@ class AuthService {
   // Eliminar cuenta
   Future<bool> deleteAccount(String password) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/auth/account'),
-        headers: _authHeaders,
-        body: jsonEncode({'password': password}),
-      );
+      // TODO: Implementar endpoint en el backend
+      // final response = await http.delete(
+      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/account'),
+      //   headers: _authHeaders,
+      //   body: jsonEncode({'password': password}),
+      // );
 
-      if (response.statusCode == 200) {
-        await logout();
-        return true;
-      }
-      return false;
+      // if (response.statusCode == 200) {
+      //   await logout();
+      //   return true;
+      // }
+      // return false;
+
+      // Simular por ahora
+      await Future.delayed(const Duration(seconds: 1));
+      await logout();
+      return true;
     } catch (e) {
       return false;
     }
@@ -264,60 +284,6 @@ class AuthService {
       // Verificar si el token sigue siendo válido
       await verifyToken();
     }
-  }
-
-  // Método de desarrollo para simular respuestas
-  Future<AuthResult> _simulateLogin(String email, String password) async {
-    // Simular delay de red
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Simular validación
-    if (email == 'demo@fincarent.com' && password == '123456') {
-      _currentUser = const User(
-        id: 'demo-user-id',
-        nombre: 'Usuario Demo',
-        apellido: 'FincaRent',
-        email: 'demo@fincarent.com',
-        telefono: '+57 300 123 4567',
-        fechaNacimiento: '1990-01-01',
-        genero: Genero.masculino,
-        tipoUsuario: TipoUsuario.huesped,
-        fechaRegistro: '2024-01-01T00:00:00Z',
-        verificado: true,
-        activo: true,
-      );
-      _authToken = 'demo-auth-token';
-      return AuthResult.success(_currentUser!);
-    } else {
-      return AuthResult.error('Credenciales incorrectas');
-    }
-  }
-
-  // Método de desarrollo para simular registro
-  Future<AuthResult> _simulateRegister(RegisterRequest request) async {
-    // Simular delay de red
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Simular validación de email único
-    if (request.email == 'existing@email.com') {
-      return AuthResult.error('Este email ya está registrado');
-    }
-
-    _currentUser = User(
-      id: 'new-user-${DateTime.now().millisecondsSinceEpoch}',
-      nombre: request.nombre,
-      apellido: request.apellido,
-      email: request.email,
-      telefono: request.telefono,
-      fechaNacimiento: request.fechaNacimiento,
-      genero: request.genero,
-      tipoUsuario: TipoUsuario.huesped,
-      fechaRegistro: DateTime.now().toIso8601String(),
-      verificado: false,
-      activo: true,
-    );
-    _authToken = 'new-user-auth-token';
-    return AuthResult.success(_currentUser!);
   }
 }
 

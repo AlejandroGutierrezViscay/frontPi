@@ -4,6 +4,7 @@ import '../../config/routes.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/loading_indicator.dart';
+import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -66,16 +67,28 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Simulación de login (aquí integrarás con tu servicio de auth)
-      await Future.delayed(const Duration(seconds: 2));
+      print('🔐 Intentando login...');
+      print('  Email: ${_emailController.text}');
+      
+      final authService = AuthService();
+      final result = await authService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-      // Por ahora, navegar al home directamente
-      if (mounted) {
+      if (!mounted) return;
+
+      if (result.success && result.user != null) {
+        print('✅ Login exitoso: ${result.user!.email}');
         context.goToHome();
+      } else {
+        print('❌ Login fallido: ${result.error}');
+        _showErrorSnackBar(result.error ?? 'Error al iniciar sesión');
       }
     } catch (e) {
+      print('❌ Excepción en login: $e');
       if (mounted) {
-        _showErrorSnackBar('Error al iniciar sesión. Intenta nuevamente.');
+        _showErrorSnackBar('Error de conexión. Verifica tu internet.');
       }
     } finally {
       if (mounted) {

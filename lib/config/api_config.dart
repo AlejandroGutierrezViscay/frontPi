@@ -16,8 +16,8 @@ class ApiConfig {
     return {...headers, 'Authorization': 'Bearer $token'};
   }
 
-  // Endpoints de usuarios
-  static const String usersEndpoint = '/api/usuarios';
+  // Endpoints de usuarios (según backend real)
+  static const String usersEndpoint = '/api/users';
   static const String loginEndpoint = '/api/auth/login';
   static const String registerEndpoint = '/api/auth/register';
 

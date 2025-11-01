@@ -36,10 +36,10 @@ class User {
   // Factory constructor para crear desde JSON
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as String,
+      id: json['id'].toString(), // Convertir a String
       email: json['email'] as String,
       nombre: json['nombre'] as String,
-      apellido: json['apellido'] as String,
+      apellido: json['apellido'] as String? ?? '', // Puede ser null en respuestas del backend
       telefono: json['telefono'] as String?,
       fechaNacimiento: json['fechaNacimiento'] as String?,
       genero: json['genero'] != null 
@@ -49,18 +49,22 @@ class User {
             )
           : null,
       photoUrl: json['photoUrl'] as String?,
-      tipoUsuario: TipoUsuario.values.firstWhere(
-        (tipo) => tipo.name == json['tipoUsuario'],
-        orElse: () => TipoUsuario.huesped,
-      ),
+      tipoUsuario: json['tipoUsuario'] != null
+          ? TipoUsuario.values.firstWhere(
+              (tipo) => tipo.name == json['tipoUsuario'],
+              orElse: () => TipoUsuario.huesped,
+            )
+          : TipoUsuario.huesped,
       verificado: json['verificado'] as bool? ?? false,
       activo: json['activo'] as bool? ?? true,
-      fechaRegistro: json['fechaRegistro'] as String,
+      fechaRegistro: json['fechaRegistro'] as String? ?? DateTime.now().toIso8601String(),
       fechaUltimoAcceso: json['fechaUltimoAcceso'] as String?,
-      authProvider: AuthProvider.values.firstWhere(
-        (provider) => provider.name == json['authProvider'],
-        orElse: () => AuthProvider.email,
-      ),
+      authProvider: json['authProvider'] != null
+          ? AuthProvider.values.firstWhere(
+              (provider) => provider.name == json['authProvider'],
+              orElse: () => AuthProvider.email,
+            )
+          : AuthProvider.email,
       preferencias: json['preferencias'] != null
           ? PreferenciasUsuario.fromJson(json['preferencias'])
           : null,

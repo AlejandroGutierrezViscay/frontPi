@@ -22,10 +22,24 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
     _cargarReservas();
   }
 
-  void _cargarReservas() {
+  Future<void> _cargarReservas() async {
     setState(() {
-      _reservas = _reservaService.reservas;
+      _isLoading = true;
     });
+
+    try {
+      // TODO: Obtener el ID del usuario autenticado
+      final usuarioId = 1; // Temporal: usar ID fijo
+      final reservas = await _reservaService.obtenerMisReservas(usuarioId);
+      setState(() {
+        _reservas = reservas;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _cancelarReserva(String reservaId) async {
@@ -63,10 +77,7 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
         _isLoading = true;
       });
 
-      // Simular delay de API
-      await Future.delayed(const Duration(seconds: 1));
-
-      final success = _reservaService.cancelarReserva(reservaId);
+      final success = await _reservaService.cancelarReserva(reservaId);
 
       setState(() {
         _isLoading = false;

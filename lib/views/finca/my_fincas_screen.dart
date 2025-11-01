@@ -30,7 +30,9 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
     });
 
     try {
-      final fincas = await _fincaService.obtenerMisFincas();
+      // TODO: Obtener el ID del propietario del usuario autenticado
+      final propietarioId = 1; // Temporal: usar ID fijo
+      final fincas = await _fincaService.obtenerMisFincas(propietarioId);
       setState(() {
         _misFincas = fincas;
         _isLoading = false;

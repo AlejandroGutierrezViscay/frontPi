@@ -162,37 +162,16 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
         imagenesBase64.add(base64String);
       }
 
-      // Crear finca usando el servicio
+      // Crear finca usando el servicio (adaptado al backend)
       final nuevaFinca = await _fincaService.crearFinca(
-        titulo: _nombreController.text.trim(),
+        nombre: _nombreController.text.trim(),
         descripcion: _descripcionController.text.trim(),
-        precio: double.parse(_precioController.text.trim()),
+        precioPorNoche: double.parse(_precioController.text.trim()),
         ubicacion: _ubicacionController.text.trim(),
-        ciudad: _extraerCiudad(_ubicacionController.text.trim()),
-        departamento: _extraerDepartamento(_ubicacionController.text.trim()),
-        capacidadMaxima: int.parse(_capacidadController.text.trim()),
-        numeroHabitaciones: int.parse(_habitacionesController.text.trim()),
-        numeroBanos: int.parse(_banosController.text.trim()),
-        tipo: _tipoSeleccionado,
-        servicios: _amenidadesSeleccionadas,
-        actividades: [], // Por ahora vacío, se puede agregar después
-        imagenes: imagenesBase64, // Usar las imágenes convertidas a base64
-        reglas: _reglasController.text.trim().isNotEmpty
-            ? [
-                ReglaFinca(
-                  id: 'regla-1',
-                  titulo: 'Reglas de la casa',
-                  descripcion: _reglasController.text.trim(),
-                  esObligatoria: true,
-                ),
-              ]
-            : [],
-        area: _areaController.text.trim().isNotEmpty
-            ? double.tryParse(_areaController.text.trim())
-            : null,
+        propietarioId: 1, // TODO: Obtener del usuario autenticado
       );
 
-      if (mounted) {
+      if (mounted && nuevaFinca != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

@@ -643,36 +643,19 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Simular procesamiento de reserva
-      await Future.delayed(const Duration(seconds: 2));
+      // Crear reserva usando el backend
+      final fechaInicioStr =
+          _fechaInicio!.toIso8601String().split('T')[0]; // YYYY-MM-DD
+      final fechaFinStr = _fechaFin!.toIso8601String().split('T')[0];
 
-      // Crear objeto de reserva
-      final reserva = Reserva(
-        id: 'reserva-${DateTime.now().millisecondsSinceEpoch}',
-        fincaId: widget.finca.id,
-        usuarioId: 'usuario-actual', // En una app real vendría del auth
-        fechaInicio: _fechaInicio!,
-        fechaFin: _fechaFin!,
-        numeroHuespedes: _numeroHuespedes,
-        precioTotal: _total,
-        precioNoche: widget.finca.precio,
-        numeroNoches: _fechaFin!.difference(_fechaInicio!).inDays,
-        estado: EstadoReserva.confirmada,
-        fechaCreacion: DateTime.now(),
-        datosContacto: DatosContacto(
-          nombreCompleto: _nombreController.text.trim(),
-          telefono: _telefonoController.text.trim(),
-          email: _emailController.text.trim(),
-        ),
-        notasEspeciales: _solicitudesController.text.trim().isEmpty
-            ? null
-            : _solicitudesController.text.trim(),
+      final reserva = await ReservaService().crearReserva(
+        usuarioId: 1, // TODO: Obtener del usuario autenticado
+        fincaId: int.parse(widget.finca.id),
+        fechaInicio: fechaInicioStr,
+        fechaFin: fechaFinStr,
       );
 
-      // Guardar reserva en el servicio
-      ReservaService().agregarReserva(reserva);
-
-      if (mounted) {
+      if (mounted && reserva != null) {
         // Mostrar confirmación
         showDialog(
           context: context,

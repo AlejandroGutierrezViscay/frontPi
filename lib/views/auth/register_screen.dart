@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/api_config.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/loading_indicator.dart';
+import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,10 +21,12 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _nameFocusNode = FocusNode();
   final _emailFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   final _confirmPasswordFocusNode = FocusNode();
 
@@ -60,10 +66,12 @@ class _RegisterScreenState extends State<RegisterScreen>
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _nameFocusNode.dispose();
     _emailFocusNode.dispose();
+    _phoneFocusNode.dispose();
     _passwordFocusNode.dispose();
     _confirmPasswordFocusNode.dispose();
     _animationController.dispose();
@@ -81,15 +89,37 @@ class _RegisterScreenState extends State<RegisterScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Simulación de registro (aquí integrarás con tu servicio de auth)
-      await Future.delayed(const Duration(seconds: 2));
+      print('📝 Iniciando registro...');
+      print('  Nombre: ${_nameController.text}');
+      print('  Email: ${_emailController.text}');
 
-      if (mounted) {
+      // Llamar directamente al endpoint de registro del backend
+      final response = await http.post(
+        Uri.parse(ApiConfig.registerUrl),
+        headers: ApiConfig.headers,
+        body: jsonEncode({
+          'nombre': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'telefono': _phoneController.text.trim(),
+          'password': _passwordController.text,
+        }),
+      ).timeout(ApiConfig.connectTimeout);
+
+      if (!mounted) return;
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Registro exitoso: ${data['email']}');
         _showSuccessDialog();
+      } else {
+        final data = jsonDecode(response.body);
+        print('❌ Registro fallido: ${data['message'] ?? response.body}');
+        _showErrorSnackBar(data['message'] ?? 'Error al crear la cuenta');
       }
     } catch (e) {
+      print('❌ Excepción en registro: $e');
       if (mounted) {
-        _showErrorSnackBar('Error al crear la cuenta. Intenta nuevamente.');
+        _showErrorSnackBar('Error de conexión. Verifica tu internet.');
       }
     } finally {
       if (mounted) {
@@ -169,6 +199,23 @@ class _RegisterScreenState extends State<RegisterScreen>
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(value)) {
       return 'Ingresa un email válido';
+    }
+
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'El teléfono es requerido';
+    }
+
+    if (value.length < 10) {
+      return 'Ingresa un número de teléfono válido (10 dígitos)';
+    }
+
+    final phoneRegex = RegExp(r'^[0-9]{10}$');
+    if (!phoneRegex.hasMatch(value)) {
+      return 'Solo números (10 dígitos)';
     }
 
     return null;
@@ -284,6 +331,22 @@ class _RegisterScreenState extends State<RegisterScreen>
                             textInputAction: TextInputAction.next,
                             prefixIcon: const Icon(Icons.email_outlined),
                             validator: _validateEmail,
+                            onSubmitted: (_) =>
+                                _phoneFocusNode.requestFocus(),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Campo de teléfono
+                          CustomTextField(
+                            label: 'Teléfono',
+                            hintText: '3001234567',
+                            controller: _phoneController,
+                            focusNode: _phoneFocusNode,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                            prefixIcon: const Icon(Icons.phone_outlined),
+                            validator: _validatePhone,
                             onSubmitted: (_) =>
                                 _passwordFocusNode.requestFocus(),
                           ),
