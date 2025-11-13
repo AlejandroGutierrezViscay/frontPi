@@ -30,7 +30,7 @@ class _BookingScreenState extends State<BookingScreen> {
   double get _subtotal {
     if (_fechaInicio == null || _fechaFin == null) return 0;
     final dias = _fechaFin!.difference(_fechaInicio!).inDays;
-    return dias * widget.finca.precio;
+    return dias * widget.finca.precioPorNoche;
   }
 
   double get _tasasServicios => _subtotal * 0.1; // 10% de tasas
@@ -123,11 +123,11 @@ class _BookingScreenState extends State<BookingScreen> {
                 borderRadius: BorderRadius.circular(8),
                 color: AppColors.primary.withOpacity(0.1),
               ),
-              child: widget.finca.imagenes.isNotEmpty
+              child: (widget.finca.imagenes?.isNotEmpty ?? false)
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.network(
-                        widget.finca.imagenes.first,
+                        widget.finca.imagenes!.first.urlImagen,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Icon(
@@ -152,7 +152,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.finca.titulo,
+                    widget.finca.nombre,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -189,14 +189,14 @@ class _BookingScreenState extends State<BookingScreen> {
                       Icon(Icons.star, color: Colors.amber[600], size: 16),
                       const SizedBox(width: 4),
                       Text(
-                        widget.finca.calificacion.toStringAsFixed(1),
+                        '0.0', // TODO: Agregar calificación cuando el backend lo soporte
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
                       ),
                       Text(
-                        ' (${widget.finca.numeroReviews})',
+                        ' (0)', // TODO: Agregar número de reviews cuando el backend lo soporte
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
@@ -408,12 +408,14 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
               IconButton(
-                onPressed: _numeroHuespedes < widget.finca.capacidadMaxima
+                onPressed:
+                    _numeroHuespedes <
+                        10 // TODO: Usar capacidadMaxima del backend
                     ? () => setState(() => _numeroHuespedes++)
                     : null,
                 icon: Icon(
                   Icons.add_circle_outline,
-                  color: _numeroHuespedes < widget.finca.capacidadMaxima
+                  color: _numeroHuespedes < 10
                       ? AppColors.primary
                       : AppColors.textSecondary,
                 ),
@@ -421,10 +423,10 @@ class _BookingScreenState extends State<BookingScreen> {
             ],
           ),
         ),
-        if (_numeroHuespedes == widget.finca.capacidadMaxima) ...[
+        if (_numeroHuespedes == 10) ...[
           const SizedBox(height: 8),
           Text(
-            'Capacidad máxima: ${widget.finca.capacidadMaxima} huéspedes',
+            'Capacidad máxima: 10 huéspedes', // TODO: Usar capacidadMaxima del backend
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
         ],
@@ -560,7 +562,7 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
             const SizedBox(height: 16),
             _buildCostRow(
-              '\$${widget.finca.precio.toStringAsFixed(0)} x $dias noches',
+              '\$${widget.finca.precioPorNoche.toStringAsFixed(0)} x $dias noches',
               '\$${_subtotal.toStringAsFixed(0)}',
             ),
             const SizedBox(height: 8),
@@ -631,7 +633,9 @@ class _BookingScreenState extends State<BookingScreen> {
     return SizedBox(
       width: double.infinity,
       child: CustomButton(
-        text: _isLoading ? 'Procesando...' : 'Confirmar Reserva',
+        text: _isLoading
+            ? 'Verificando disponibilidad...'
+            : 'Confirmar Reserva',
         onPressed: isFormValid && !_isLoading ? _confirmarReserva : null,
       ),
     );
@@ -643,11 +647,56 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Crear reserva usando el backend
-      final fechaInicioStr =
-          _fechaInicio!.toIso8601String().split('T')[0]; // YYYY-MM-DD
+      // Preparar fechas en formato YYYY-MM-DD
+      final fechaInicioStr = _fechaInicio!.toIso8601String().split(
+        'T',
+      )[0]; // YYYY-MM-DD
       final fechaFinStr = _fechaFin!.toIso8601String().split('T')[0];
 
+      // PASO 1: Verificar disponibilidad antes de crear la reserva
+      print('🔍 Verificando disponibilidad antes de crear reserva...');
+      final disponible = await ReservaService().verificarDisponibilidad(
+        fincaId: int.parse(widget.finca.id),
+        fechaInicio: fechaInicioStr,
+        fechaFin: fechaFinStr,
+      );
+
+      if (!disponible) {
+        // Las fechas NO están disponibles
+        setState(() => _isLoading = false);
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.error_outline, color: AppColors.error, size: 28),
+                  const SizedBox(width: 12),
+                  const Text('Fechas no disponibles'),
+                ],
+              ),
+              content: Text(
+                'Las fechas seleccionadas ya han sido reservadas por otro usuario. Por favor, selecciona otras fechas.',
+                style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // PASO 2: Si está disponible, crear la reserva
+      print('✅ Fechas disponibles, creando reserva...');
       final reserva = await ReservaService().crearReserva(
         usuarioId: 1, // TODO: Obtener del usuario autenticado
         fincaId: int.parse(widget.finca.id),

@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/finca.dart';
 import '../../services/finca_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/loading_indicator.dart';
 import '../debug/api_test_screen.dart';
 
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _cargarFincas() async {
+    print('🏠 HomeScreen: Iniciando carga de fincas...');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -41,11 +43,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final fincas = await _fincaService.obtenerFincas();
+      print('🏠 HomeScreen: Fincas recibidas: ${fincas.length}');
+      for (var finca in fincas) {
+        print('  - ${finca.nombre} (ID: ${finca.id})');
+      }
       setState(() {
         _fincasFiltradas = fincas;
         _isLoading = false;
       });
     } catch (e) {
+      print('❌ HomeScreen: Error al cargar fincas: $e');
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -65,6 +72,66 @@ class _HomeScreenState extends State<HomeScreen> {
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _cerrarSesion() async {
+    // Mostrar diálogo de confirmación
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Cerrar Sesión'),
+          content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Cerrar Sesión'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Si el usuario confirmó, cerrar sesión
+    if (confirmar == true && mounted) {
+      try {
+        // Limpiar el token de AuthService
+        final authService = AuthService();
+        await authService.logout();
+
+        // Navegar a la pantalla de login y limpiar el historial
+        if (mounted) {
+          context.go(AppRoutes.login);
+
+          // Mostrar mensaje de confirmación
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sesión cerrada exitosamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al cerrar sesión: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -110,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   context.push(AppRoutes.myReservas);
                   break;
                 case 'logout':
-                  // TODO: Implementar logout
+                  _cerrarSesion();
                   break;
               }
             },
@@ -157,6 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: 0,
             right: 0,
             child: FloatingActionButton.extended(
+              heroTag: 'addFincaButton', // Tag único para evitar conflictos
               onPressed: () {
                 context.push(AppRoutes.addFinca);
               },
@@ -174,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: 70,
             right: 0,
             child: FloatingActionButton(
+              heroTag: 'apiTestButton', // Tag único para evitar conflictos
               mini: true,
               onPressed: () {
                 Navigator.of(context).push(
@@ -341,12 +410,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 color: AppColors.primary.withOpacity(0.1),
               ),
-              child: finca.imagenes.isNotEmpty
+              child: (finca.imagenes?.isNotEmpty ?? false)
                   ? ClipRRect(
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(12),
                       ),
-                      child: _buildFincaImage(finca.imagenes.first),
+                      child: _buildFincaImage(finca.imagenes!.first.urlImagen),
                     )
                   : Container(
                       decoration: BoxDecoration(
@@ -372,7 +441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    finca.titulo,
+                    finca.nombre,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -414,17 +483,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       _buildInfoChip(
                         Icons.people_outline,
-                        '${finca.capacidadMaxima} personas',
+                        'N/A personas', // TODO: ${finca.capacidadMaxima} cuando backend lo soporte
                       ),
                       const SizedBox(width: 12),
                       _buildInfoChip(
                         Icons.bed_outlined,
-                        '${finca.numeroHabitaciones} hab.',
+                        'N/A hab.', // TODO: ${finca.numeroHabitaciones} cuando backend lo soporte
                       ),
                       const SizedBox(width: 12),
                       _buildInfoChip(
                         Icons.bathroom_outlined,
-                        '${finca.numeroBanos} baños',
+                        'N/A baños', // TODO: ${finca.numeroBanos} cuando backend lo soporte
                       ),
                     ],
                   ),
@@ -433,7 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '\$${finca.precio.toStringAsFixed(0)}',
+                        '\$${finca.precioPorNoche.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -754,8 +823,8 @@ class FincaSearchDelegate extends SearchDelegate<Finca?> {
           itemBuilder: (context, index) {
             final finca = fincas[index];
             return ListTile(
-              leading: finca.imagenes.isNotEmpty
-                  ? buildFincaImageWidget(finca.imagenes.first)
+              leading: (finca.imagenes?.isNotEmpty ?? false)
+                  ? buildFincaImageWidget(finca.imagenes!.first.urlImagen)
                   : Container(
                       width: 60,
                       height: 60,
@@ -769,13 +838,13 @@ class FincaSearchDelegate extends SearchDelegate<Finca?> {
                         size: 24,
                       ),
                     ),
-              title: Text(finca.titulo),
+              title: Text(finca.nombre),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(finca.ubicacion),
                   Text(
-                    '\$${finca.precio.toStringAsFixed(0)}/noche',
+                    '\$${finca.precioPorNoche.toStringAsFixed(0)}/noche',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,

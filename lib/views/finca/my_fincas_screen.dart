@@ -211,12 +211,12 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
               ),
               color: AppColors.primary.withOpacity(0.1),
             ),
-            child: finca.imagenes.isNotEmpty
+            child: (finca.imagenes?.isNotEmpty ?? false)
                 ? ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
-                    child: _buildFincaImage(finca.imagenes.first),
+                    child: _buildFincaImage(finca.imagenes!.first.urlImagen),
                   )
                 : Container(
                     decoration: BoxDecoration(
@@ -245,7 +245,7 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        finca.titulo,
+                        finca.nombre,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -259,19 +259,18 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: finca.disponible
-                            ? AppColors.success.withOpacity(0.1)
-                            : AppColors.warning.withOpacity(0.1),
+                        color: AppColors.success.withOpacity(
+                          0.1,
+                        ), // TODO: usar finca.disponible cuando backend lo soporte
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        finca.disponible ? 'Disponible' : 'No disponible',
+                        'Disponible', // TODO: usar finca.disponible cuando backend lo soporte
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: finca.disponible
-                              ? AppColors.success
-                              : AppColors.warning,
+                          color: AppColors
+                              .success, // TODO: usar finca.disponible cuando backend lo soporte
                         ),
                       ),
                     ),
@@ -307,7 +306,7 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${finca.capacidadMaxima} personas',
+                      'N/A personas', // TODO: ${finca.capacidadMaxima} cuando backend lo soporte
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -321,7 +320,7 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${finca.numeroHabitaciones} hab.',
+                      'N/A hab.', // TODO: ${finca.numeroHabitaciones} cuando backend lo soporte
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -334,7 +333,7 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '\$${finca.precio.toStringAsFixed(0)}/noche',
+                      '\$${finca.precioPorNoche.toStringAsFixed(0)}/noche',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -379,9 +378,9 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar finca'),
+        title: const Text('Eliminar Finca'),
         content: Text(
-          '¿Estás seguro de que deseas eliminar "${finca.titulo}"?',
+          '¿Estás seguro de que deseas eliminar "${finca.nombre}"?',
         ),
         actions: [
           TextButton(
@@ -398,18 +397,67 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
     );
 
     if (confirm == true && mounted) {
-      // TODO: Implementar eliminación
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Finca eliminada exitosamente'),
-          backgroundColor: AppColors.success,
-        ),
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-      _cargarMisFincas();
+
+      try {
+        print('🗑️ Eliminando finca: ${finca.nombre} (ID: ${finca.id})');
+        final success = await _fincaService.eliminarFinca(finca.id);
+
+        // Cerrar el diálogo de carga
+        if (mounted) Navigator.of(context).pop();
+
+        if (success) {
+          print('✅ Finca eliminada exitosamente de la base de datos');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Finca "${finca.nombre}" eliminada exitosamente'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            // Recargar la lista de fincas
+            _cargarMisFincas();
+          }
+        } else {
+          print('❌ Error al eliminar finca del backend');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Error al eliminar la finca. Intenta nuevamente.',
+                ),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('❌ Excepción al eliminar finca: $e');
+        // Cerrar el diálogo de carga
+        if (mounted) Navigator.of(context).pop();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
     }
   }
 
   Widget _buildFincaImage(String imagePath) {
+    print(
+      '🖼️ MyFincas - Cargando imagen: ${imagePath.substring(0, imagePath.length > 80 ? 80 : imagePath.length)}...',
+    );
+
     // Para imágenes en formato base64 (fincas creadas por el usuario)
     if (imagePath.startsWith('data:image/')) {
       return Image.network(
@@ -417,7 +465,20 @@ class _MyFincasScreenState extends State<MyFincasScreen> {
         width: double.infinity,
         height: 200,
         fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            print('✅ Imagen cargada en MyFincas');
+            return child;
+          }
+          return Container(
+            width: double.infinity,
+            height: 200,
+            color: AppColors.primary.withOpacity(0.1),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        },
         errorBuilder: (context, error, stackTrace) {
+          print('❌ Error al cargar imagen en MyFincas: $error');
           return Container(
             width: double.infinity,
             height: 200,

@@ -73,7 +73,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
             'ID: ${user.id}\n'
             'Email: ${user.email}\n'
             'Nombre: ${user.nombre}\n'
-            'Verificado: ${user.verificado}\n\n'
+            'Activo: ${user.activo}\n\n'
             '🎯 El usuario fue guardado en PostgreSQL';
       });
     } catch (e) {
@@ -97,12 +97,8 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
       final request = RegisterRequest(
         email: 'auth$timestamp@fincasmart.com',
         password: 'password123',
-        confirmPassword: 'password123',
         nombre: 'Auth Test',
-        apellido: 'Usuario',
         telefono: '3001234567',
-        tipoUsuario: TipoUsuario.huesped,
-        aceptaTerminos: true,
       );
 
       final result = await authService.register(request);

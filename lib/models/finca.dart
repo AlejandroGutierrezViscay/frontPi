@@ -1,182 +1,115 @@
-// Modelo para una finca/propiedad rural
+/// Modelo Finca adaptado al backend de FincaSmart
+/// Backend: Finca { id, nombre, ubicacion, precioPorNoche, descripcion, propietario, imagenes, amenidades }
 class Finca {
   final String id;
-  final String titulo;
+  final String nombre;
   final String descripcion;
-  final double precio; // Precio por noche
   final String ubicacion;
-  final String ciudad;
-  final String departamento;
-  final double latitud;
-  final double longitud;
-  final List<String> imagenes;
-  final String propietarioId;
-  final int capacidadMaxima;
-  final int numeroHabitaciones;
-  final int numeroBanos;
-  final List<String> servicios; // WiFi, piscina, etc.
-  final List<String> actividades; // Pesca, senderismo, etc.
-  final bool disponible;
-  final double calificacion;
-  final int numeroReviews;
-  final DateTime fechaCreacion;
-  final DateTime? fechaActualizacion;
-  final TipoFinca tipo;
-  final List<ReglaFinca> reglas;
+  final double precioPorNoche;
+  final Map<String, dynamic>? propietario; // {id, nombre, email, telefono}
+  final List<ImagenFinca>? imagenes;
+  final List<Amenidad>? amenidades;
 
   const Finca({
     required this.id,
-    required this.titulo,
+    required this.nombre,
     required this.descripcion,
-    required this.precio,
     required this.ubicacion,
-    required this.ciudad,
-    required this.departamento,
-    required this.latitud,
-    required this.longitud,
-    required this.imagenes,
-    required this.propietarioId,
-    required this.capacidadMaxima,
-    required this.numeroHabitaciones,
-    required this.numeroBanos,
-    required this.servicios,
-    required this.actividades,
-    this.disponible = true,
-    this.calificacion = 0.0,
-    this.numeroReviews = 0,
-    required this.fechaCreacion,
-    this.fechaActualizacion,
-    required this.tipo,
-    this.reglas = const [],
+    required this.precioPorNoche,
+    this.propietario,
+    this.imagenes,
+    this.amenidades,
   });
 
-  // Factory constructor para crear desde JSON
+  // Factory constructor para crear desde JSON del backend
   factory Finca.fromJson(Map<String, dynamic> json) {
     return Finca(
-      id: json['id'] as String,
-      titulo: json['titulo'] as String,
-      descripcion: json['descripcion'] as String,
-      precio: (json['precio'] as num).toDouble(),
+      id: json['id'].toString(),
+      nombre: json['nombre'] as String,
+      descripcion: json['descripcion'] as String? ?? '',
       ubicacion: json['ubicacion'] as String,
-      ciudad: json['ciudad'] as String,
-      departamento: json['departamento'] as String,
-      latitud: (json['latitud'] as num).toDouble(),
-      longitud: (json['longitud'] as num).toDouble(),
-      imagenes: List<String>.from(json['imagenes'] as List),
-      propietarioId: json['propietarioId'] as String,
-      capacidadMaxima: json['capacidadMaxima'] as int,
-      numeroHabitaciones: json['numeroHabitaciones'] as int,
-      numeroBanos: json['numeroBanos'] as int,
-      servicios: List<String>.from(json['servicios'] as List),
-      actividades: List<String>.from(json['actividades'] as List),
-      disponible: json['disponible'] as bool? ?? true,
-      calificacion: (json['calificacion'] as num?)?.toDouble() ?? 0.0,
-      numeroReviews: json['numeroReviews'] as int? ?? 0,
-      fechaCreacion: DateTime.parse(json['fechaCreacion'] as String),
-      fechaActualizacion: json['fechaActualizacion'] != null
-          ? DateTime.parse(json['fechaActualizacion'] as String)
+      precioPorNoche: (json['precioPorNoche'] as num).toDouble(),
+      propietario: json['propietario'] as Map<String, dynamic>?,
+      imagenes: json['imagenes'] != null
+          ? (json['imagenes'] as List)
+              .map((img) => ImagenFinca.fromJson(img))
+              .toList()
           : null,
-      tipo: TipoFinca.values.firstWhere(
-        (tipo) => tipo.name == json['tipo'],
-        orElse: () => TipoFinca.casa,
-      ),
-      reglas:
-          (json['reglas'] as List?)
-              ?.map((regla) => ReglaFinca.fromJson(regla))
-              .toList() ??
-          [],
+      amenidades: json['amenidades'] != null
+          ? (json['amenidades'] as List)
+              .map((am) => Amenidad.fromJson(am))
+              .toList()
+          : null,
     );
   }
 
-  // Método para convertir a JSON
+  // Método para convertir a JSON (para enviar al backend al CREAR)
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'titulo': titulo,
+      'nombre': nombre,
       'descripcion': descripcion,
-      'precio': precio,
       'ubicacion': ubicacion,
-      'ciudad': ciudad,
-      'departamento': departamento,
-      'latitud': latitud,
-      'longitud': longitud,
-      'imagenes': imagenes,
-      'propietarioId': propietarioId,
-      'capacidadMaxima': capacidadMaxima,
-      'numeroHabitaciones': numeroHabitaciones,
-      'numeroBanos': numeroBanos,
-      'servicios': servicios,
-      'actividades': actividades,
-      'disponible': disponible,
-      'calificacion': calificacion,
-      'numeroReviews': numeroReviews,
-      'fechaCreacion': fechaCreacion.toIso8601String(),
-      'fechaActualizacion': fechaActualizacion?.toIso8601String(),
-      'tipo': tipo.name,
-      'reglas': reglas.map((regla) => regla.toJson()).toList(),
+      'precioPorNoche': precioPorNoche,
+      'propietario': {'id': propietarioId}, // Backend espera {id: x}
     };
   }
 
-  // Método copyWith
-  Finca copyWith({
-    String? id,
-    String? titulo,
-    String? descripcion,
-    double? precio,
-    String? ubicacion,
-    String? ciudad,
-    String? departamento,
-    double? latitud,
-    double? longitud,
-    List<String>? imagenes,
-    String? propietarioId,
-    int? capacidadMaxima,
-    int? numeroHabitaciones,
-    int? numeroBanos,
-    List<String>? servicios,
-    List<String>? actividades,
-    bool? disponible,
-    double? calificacion,
-    int? numeroReviews,
-    DateTime? fechaCreacion,
-    DateTime? fechaActualizacion,
-    TipoFinca? tipo,
-    List<ReglaFinca>? reglas,
-  }) {
-    return Finca(
-      id: id ?? this.id,
-      titulo: titulo ?? this.titulo,
-      descripcion: descripcion ?? this.descripcion,
-      precio: precio ?? this.precio,
-      ubicacion: ubicacion ?? this.ubicacion,
-      ciudad: ciudad ?? this.ciudad,
-      departamento: departamento ?? this.departamento,
-      latitud: latitud ?? this.latitud,
-      longitud: longitud ?? this.longitud,
-      imagenes: imagenes ?? this.imagenes,
-      propietarioId: propietarioId ?? this.propietarioId,
-      capacidadMaxima: capacidadMaxima ?? this.capacidadMaxima,
-      numeroHabitaciones: numeroHabitaciones ?? this.numeroHabitaciones,
-      numeroBanos: numeroBanos ?? this.numeroBanos,
-      servicios: servicios ?? this.servicios,
-      actividades: actividades ?? this.actividades,
-      disponible: disponible ?? this.disponible,
-      calificacion: calificacion ?? this.calificacion,
-      numeroReviews: numeroReviews ?? this.numeroReviews,
-      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
-      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
-      tipo: tipo ?? this.tipo,
-      reglas: reglas ?? this.reglas,
-    );
+  // Método para actualizar (PUT)
+  Map<String, dynamic> toJsonUpdate() {
+    return {
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'ubicacion': ubicacion,
+      'precioPorNoche': precioPorNoche,
+      'propietario': {'id': propietarioId},
+    };
   }
 
   // Getters útiles
-  String get precioFormateado => '\$${precio.toStringAsFixed(0)}';
-  String get ubicacionCompleta => '$ciudad, $departamento';
-  bool get tieneImagenes => imagenes.isNotEmpty;
-  String get imagenPrincipal => imagenes.isNotEmpty ? imagenes.first : '';
-  bool get estaCalificada => calificacion > 0;
-  String get calificacionTexto => calificacion.toStringAsFixed(1);
+  String get propietarioId => propietario?['id']?.toString() ?? '';
+  String get propietarioNombre => propietario?['nombre'] as String? ?? 'Desconocido';
+  
+  List<String> get imagenesUrls {
+    return imagenes?.map((img) => img.urlImagen).toList() ?? [];
+  }
+  
+  String? get imagenPrincipal {
+    if (imagenes == null || imagenes!.isEmpty) return null;
+    
+    // Buscar imagen marcada como principal
+    final principal = imagenes!.firstWhere(
+      (img) => img.esPrincipal,
+      orElse: () => imagenes!.first,
+    );
+    return principal.urlImagen;
+  }
+  
+  List<String> get amenidadesNombres {
+    return amenidades?.map((am) => am.nombre).toList() ?? [];
+  }
+
+  // CopyWith
+  Finca copyWith({
+    String? id,
+    String? nombre,
+    String? descripcion,
+    String? ubicacion,
+    double? precioPorNoche,
+    Map<String, dynamic>? propietario,
+    List<ImagenFinca>? imagenes,
+    List<Amenidad>? amenidades,
+  }) {
+    return Finca(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      ubicacion: ubicacion ?? this.ubicacion,
+      precioPorNoche: precioPorNoche ?? this.precioPorNoche,
+      propietario: propietario ?? this.propietario,
+      imagenes: imagenes ?? this.imagenes,
+      amenidades: amenidades ?? this.amenidades,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
@@ -189,126 +122,122 @@ class Finca {
 
   @override
   String toString() {
-    return 'Finca(id: $id, titulo: $titulo, precio: $precio, ubicacion: $ubicacionCompleta)';
+    return 'Finca(id: $id, nombre: $nombre, ubicacion: $ubicacion, precio: \$$precioPorNoche)';
   }
 }
 
-// Enum para tipos de finca
-enum TipoFinca {
-  casa('Casa de Campo'),
-  finca('Finca'),
-  cabana('Cabaña'),
-  hacienda('Hacienda'),
-  lodge('Lodge'),
-  camping('Camping'),
-  glamping('Glamping');
-
-  const TipoFinca(this.displayName);
-  final String displayName;
-}
-
-// Clase para reglas de la finca
-class ReglaFinca {
+/// Modelo ImagenFinca del backend
+/// Backend: ImagenFinca { id, urlImagen, esPrincipal, orden, descripcion }
+class ImagenFinca {
   final String id;
-  final String titulo;
-  final String descripcion;
-  final bool esObligatoria;
+  final String urlImagen;
+  final bool esPrincipal;
+  final int orden;
+  final String? descripcion;
 
-  const ReglaFinca({
+  const ImagenFinca({
     required this.id,
-    required this.titulo,
-    required this.descripcion,
-    this.esObligatoria = false,
+    required this.urlImagen,
+    this.esPrincipal = false,
+    this.orden = 0,
+    this.descripcion,
   });
 
-  factory ReglaFinca.fromJson(Map<String, dynamic> json) {
-    return ReglaFinca(
-      id: json['id'] as String,
-      titulo: json['titulo'] as String,
-      descripcion: json['descripcion'] as String,
-      esObligatoria: json['esObligatoria'] as bool? ?? false,
+  factory ImagenFinca.fromJson(Map<String, dynamic> json) {
+    return ImagenFinca(
+      id: json['id'].toString(),
+      urlImagen: json['urlImagen'] as String,
+      esPrincipal: json['esPrincipal'] as bool? ?? false,
+      orden: json['orden'] as int? ?? 0,
+      descripcion: json['descripcion'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'titulo': titulo,
-      'descripcion': descripcion,
-      'esObligatoria': esObligatoria,
+      'urlImagen': urlImagen,
+      'esPrincipal': esPrincipal,
+      'orden': orden,
+      if (descripcion != null) 'descripcion': descripcion,
     };
   }
 }
 
-// Clase para filtros de búsqueda
+/// Modelo Amenidad del backend
+/// Backend: Amenidad { id, nombre, icono, categoria }
+class Amenidad {
+  final String id;
+  final String nombre;
+  final String? icono;
+  final String? categoria;
+
+  const Amenidad({
+    required this.id,
+    required this.nombre,
+    this.icono,
+    this.categoria,
+  });
+
+  factory Amenidad.fromJson(Map<String, dynamic> json) {
+    return Amenidad(
+      id: json['id'].toString(),
+      nombre: json['nombre'] as String,
+      icono: json['icono'] as String?,
+      categoria: json['categoria'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nombre': nombre,
+      if (icono != null) 'icono': icono,
+      if (categoria != null) 'categoria': categoria,
+    };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Amenidad && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+/// Clase para filtros de búsqueda de fincas
 class FiltrosBusqueda {
-  final String? ciudad;
-  final String? departamento;
+  final String? nombre;
+  final String? ubicacion;
   final double? precioMin;
   final double? precioMax;
-  final int? capacidadMinima;
-  final List<String>? servicios;
-  final List<String>? actividades;
-  final TipoFinca? tipo;
-  final double? calificacionMinima;
-  final DateTime? fechaInicio;
-  final DateTime? fechaFin;
 
   const FiltrosBusqueda({
-    this.ciudad,
-    this.departamento,
+    this.nombre,
+    this.ubicacion,
     this.precioMin,
     this.precioMax,
-    this.capacidadMinima,
-    this.servicios,
-    this.actividades,
-    this.tipo,
-    this.calificacionMinima,
-    this.fechaInicio,
-    this.fechaFin,
   });
 
-  FiltrosBusqueda copyWith({
-    String? ciudad,
-    String? departamento,
-    double? precioMin,
-    double? precioMax,
-    int? capacidadMinima,
-    List<String>? servicios,
-    List<String>? actividades,
-    TipoFinca? tipo,
-    double? calificacionMinima,
-    DateTime? fechaInicio,
-    DateTime? fechaFin,
-  }) {
-    return FiltrosBusqueda(
-      ciudad: ciudad ?? this.ciudad,
-      departamento: departamento ?? this.departamento,
-      precioMin: precioMin ?? this.precioMin,
-      precioMax: precioMax ?? this.precioMax,
-      capacidadMinima: capacidadMinima ?? this.capacidadMinima,
-      servicios: servicios ?? this.servicios,
-      actividades: actividades ?? this.actividades,
-      tipo: tipo ?? this.tipo,
-      calificacionMinima: calificacionMinima ?? this.calificacionMinima,
-      fechaInicio: fechaInicio ?? this.fechaInicio,
-      fechaFin: fechaFin ?? this.fechaFin,
-    );
+  Map<String, dynamic> toQueryParams() {
+    final params = <String, String>{};
+    
+    if (nombre != null && nombre!.isNotEmpty) {
+      params['nombre'] = nombre!;
+    }
+    if (ubicacion != null && ubicacion!.isNotEmpty) {
+      params['ubicacion'] = ubicacion!;
+    }
+    if (precioMin != null) {
+      params['minPrecio'] = precioMin.toString();
+    }
+    if (precioMax != null) {
+      params['maxPrecio'] = precioMax.toString();
+    }
+    
+    return params;
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      if (ciudad != null) 'ciudad': ciudad,
-      if (departamento != null) 'departamento': departamento,
-      if (precioMin != null) 'precioMin': precioMin,
-      if (precioMax != null) 'precioMax': precioMax,
-      if (capacidadMinima != null) 'capacidadMinima': capacidadMinima,
-      if (servicios != null) 'servicios': servicios,
-      if (actividades != null) 'actividades': actividades,
-      if (tipo != null) 'tipo': tipo!.name,
-      if (calificacionMinima != null) 'calificacionMinima': calificacionMinima,
-      if (fechaInicio != null) 'fechaInicio': fechaInicio!.toIso8601String(),
-      if (fechaFin != null) 'fechaFin': fechaFin!.toIso8601String(),
-    };
-  }
+  bool get tieneAlgunFiltro =>
+      nombre != null || ubicacion != null || precioMin != null || precioMax != null;
 }

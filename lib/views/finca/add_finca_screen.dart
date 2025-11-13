@@ -34,26 +34,41 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
 
   // Estado del formulario
   int _currentPage = 0;
-  TipoFinca _tipoSeleccionado = TipoFinca.casa;
+  // TipoFinca _tipoSeleccionado = TipoFinca.casa; // TODO: Descomentar cuando backend soporte tipos
   final List<XFile> _fotos = [];
   final List<String> _amenidadesSeleccionadas = [];
   bool _isLoading = false;
 
-  // Lista de amenidades disponibles
+  // Lista de amenidades disponibles (nombres deben coincidir EXACTAMENTE con el backend)
   final List<Map<String, dynamic>> _amenidadesDisponibles = [
+    {'nombre': 'WiFi Gratuito', 'icono': Icons.wifi_outlined},
     {'nombre': 'Piscina', 'icono': Icons.pool_outlined},
-    {'nombre': 'WiFi', 'icono': Icons.wifi_outlined},
-    {'nombre': 'Aire Acondicionado', 'icono': Icons.ac_unit_outlined},
-    {'nombre': 'Cocina Equipada', 'icono': Icons.kitchen_outlined},
     {'nombre': 'Parqueadero', 'icono': Icons.local_parking_outlined},
     {'nombre': 'Zona BBQ', 'icono': Icons.outdoor_grill_outlined},
-    {'nombre': 'Jardín', 'icono': Icons.grass_outlined},
-    {'nombre': 'Mascotas Permitidas', 'icono': Icons.pets_outlined},
-    {'nombre': 'TV Cable', 'icono': Icons.tv_outlined},
-    {'nombre': 'Lavandería', 'icono': Icons.local_laundry_service_outlined},
-    {'nombre': 'Zona de Juegos', 'icono': Icons.sports_soccer_outlined},
-    {'nombre': 'Vista Panorámica', 'icono': Icons.landscape_outlined},
+    {'nombre': 'Aire Acondicionado', 'icono': Icons.ac_unit_outlined},
+    {'nombre': 'Cocina Equipada', 'icono': Icons.kitchen_outlined},
+    {'nombre': 'Jacuzzi', 'icono': Icons.hot_tub_outlined},
+    {'nombre': 'Cancha de Fútbol', 'icono': Icons.sports_soccer_outlined},
+    {
+      'nombre': 'Servicio de Limpieza',
+      'icono': Icons.cleaning_services_outlined,
+    },
+    {'nombre': 'Desayuno Incluido', 'icono': Icons.restaurant_outlined},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Agregar listeners para actualizar el estado cuando cambien los campos
+    _nombreController.addListener(() => setState(() {}));
+    _descripcionController.addListener(() => setState(() {}));
+    _ubicacionController.addListener(() => setState(() {}));
+    _precioController.addListener(() => setState(() {}));
+    _capacidadController.addListener(() => setState(() {}));
+    _habitacionesController.addListener(() => setState(() {}));
+    _banosController.addListener(() => setState(() {}));
+    _areaController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -134,7 +149,8 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
             _habitacionesController.text.isNotEmpty &&
             _banosController.text.isNotEmpty;
       case 2:
-        return _fotos.isNotEmpty;
+        // Las fotos son opcionales ahora (backend no soporta base64 grandes)
+        return true;
       default:
         return false;
     }
@@ -153,36 +169,74 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Convertir las imágenes a base64 para web
-      List<String> imagenesBase64 = [];
-      for (XFile foto in _fotos) {
-        final bytes = await foto.readAsBytes();
-        final base64String =
-            'data:image/jpeg;base64,${_convertBytesToBase64(bytes)}';
-        imagenesBase64.add(base64String);
-      }
+      print('📸 Iniciando guardado de finca con ${_fotos.length} fotos...');
 
-      // Crear finca usando el servicio (adaptado al backend)
+      // Paso 1: Crear la finca (sin amenidades ni imágenes)
       final nuevaFinca = await _fincaService.crearFinca(
         nombre: _nombreController.text.trim(),
         descripcion: _descripcionController.text.trim(),
         precioPorNoche: double.parse(_precioController.text.trim()),
         ubicacion: _ubicacionController.text.trim(),
         propietarioId: 1, // TODO: Obtener del usuario autenticado
+        amenidades: null, // NO enviar amenidades aquí para evitar error 500
       );
 
-      if (mounted && nuevaFinca != null) {
+      if (nuevaFinca == null) {
+        _mostrarError('Error al crear la finca');
+        return;
+      }
+
+      print('✅ Finca creada con ID: ${nuevaFinca.id}');
+
+      // Paso 2: Agregar amenidades (si hay)
+      if (_amenidadesSeleccionadas.isNotEmpty) {
+        print('🏷️ Agregando ${_amenidadesSeleccionadas.length} amenidades...');
+        print('   Amenidades seleccionadas: $_amenidadesSeleccionadas');
+        try {
+          final success = await _fincaService.agregarAmenidadesAFinca(
+            fincaId: int.parse(nuevaFinca.id),
+            nombresAmenidades: _amenidadesSeleccionadas,
+          );
+          if (success) {
+            print('✅ Amenidades agregadas correctamente');
+          } else {
+            print('⚠️ Error al agregar amenidades - revisar logs del servicio');
+          }
+        } catch (e) {
+          print('❌ Error al procesar amenidades: $e');
+        }
+      } else {
+        print('ℹ️ No se seleccionaron amenidades');
+      }
+
+      // Paso 3: Subir las imágenes (si hay)
+      // NOTA: Las imágenes base64 no se subirán porque el backend limita a 500 caracteres
+      // y las imágenes base64 tienen 14,000+ caracteres. La finca se creará sin imágenes.
+      if (_fotos.isNotEmpty) {
+        print('⚠️ Imágenes seleccionadas pero NO se subirán');
+        print('   Razón: Backend limita URLs a 500 caracteres');
+        print('   Tamaño típico de imagen base64: 14,000+ caracteres');
+        print('   La finca se creará SIN imágenes por ahora.');
+        print('');
+        print('💡 Para subir imágenes necesitas:');
+        print('   1. Modificar backend: cambiar url_imagen a TEXT sin límite');
+        print('   2. O usar servicio externo: Cloudinary, ImgBB, AWS S3');
+      }
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '¡Finca "${nuevaFinca.titulo}" agregada exitosamente!',
+              '¡Finca "${nuevaFinca.nombre}" publicada exitosamente!',
             ),
             backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 3),
           ),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
+      print('❌ Error al guardar finca: $e');
       _mostrarError('Error al guardar la finca: ${e.toString()}');
     } finally {
       if (mounted) {
@@ -331,6 +385,8 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          // TODO: Descomentar cuando backend soporte tipos de finca
+          /*
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -366,6 +422,11 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
                 ),
               );
             }).toList(),
+          ),
+          */
+          Text(
+            'Tipo: Finca', // TODO: Permitir selección cuando backend lo soporte
+            style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
 
@@ -754,6 +815,8 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
     );
   }
 
+  // TODO: Descomentar cuando backend soporte tipos de finca
+  /*
   String _getTipoFincaTexto(TipoFinca tipo) {
     switch (tipo) {
       case TipoFinca.casa:
@@ -772,4 +835,5 @@ class _AddFincaScreenState extends State<AddFincaScreen> {
         return 'Camping';
     }
   }
+  */
 }

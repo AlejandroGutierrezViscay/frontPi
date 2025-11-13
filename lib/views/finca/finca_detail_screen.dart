@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/finca.dart';
+import '../../models/resena.dart';
+import '../../services/resena_service.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/estadisticas_resenas_widget.dart';
+import '../../widgets/resena_card.dart';
 import 'booking_screen.dart';
 
 class FincaDetailScreen extends StatefulWidget {
@@ -16,6 +20,41 @@ class FincaDetailScreen extends StatefulWidget {
 class _FincaDetailScreenState extends State<FincaDetailScreen> {
   int _currentImageIndex = 0;
   bool _isFavorite = false;
+
+  // Estado de reseñas
+  final ResenaService _resenaService = ResenaService();
+  List<Resena> _resenas = [];
+  EstadisticasResenas? _estadisticas;
+  bool _isLoadingResenas = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarResenas();
+  }
+
+  Future<void> _cargarResenas() async {
+    setState(() => _isLoadingResenas = true);
+
+    try {
+      final fincaId = int.parse(widget.finca.id);
+
+      // Cargar reseñas y estadísticas en paralelo
+      final results = await Future.wait([
+        _resenaService.obtenerResenasPorFinca(fincaId),
+        _resenaService.obtenerEstadisticas(fincaId),
+      ]);
+
+      setState(() {
+        _resenas = results[0] as List<Resena>;
+        _estadisticas = results[1] as EstadisticasResenas?;
+        _isLoadingResenas = false;
+      });
+    } catch (e) {
+      print('Error cargando reseñas: $e');
+      setState(() => _isLoadingResenas = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,23 +129,23 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
                   _buildServicesSection(),
                   const SizedBox(height: 24),
 
-                  // Actividades disponibles
-                  if (widget.finca.actividades.isNotEmpty) ...[
-                    _buildActivitiesSection(),
-                    const SizedBox(height: 24),
-                  ],
+                  // TODO: Actividades disponibles - pendiente de implementar en backend
+                  // if (widget.finca.actividades.isNotEmpty) ...[
+                  //   _buildActivitiesSection(),
+                  //   const SizedBox(height: 24),
+                  // ],
 
                   // Ubicación
                   _buildLocationSection(),
                   const SizedBox(height: 24),
 
-                  // Reglas de la casa
-                  if (widget.finca.reglas.isNotEmpty) ...[
-                    _buildRulesSection(),
-                    const SizedBox(height: 24),
-                  ],
+                  // TODO: Reglas de la casa - pendiente de implementar en backend
+                  // if (widget.finca.reglas.isNotEmpty) ...[
+                  //   _buildRulesSection(),
+                  //   const SizedBox(height: 24),
+                  // ],
 
-                  // Calificaciones y reviews
+                  // Reseñas y calificaciones
                   _buildReviewsSection(),
                   const SizedBox(height: 100), // Espacio para el botón flotante
                 ],
@@ -138,7 +177,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '\$${widget.finca.precio.toStringAsFixed(0)}',
+                      '\$${widget.finca.precioPorNoche.toStringAsFixed(0)}',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -179,7 +218,8 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
   }
 
   Widget _buildImageCarousel() {
-    if (widget.finca.imagenes.isEmpty) {
+    final imagenes = widget.finca.imagenes ?? [];
+    if (imagenes.isEmpty) {
       return Container(
         color: AppColors.primary.withOpacity(0.1),
         child: const Center(
@@ -195,27 +235,27 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
     return Stack(
       children: [
         PageView.builder(
-          itemCount: widget.finca.imagenes.length,
+          itemCount: imagenes.length,
           onPageChanged: (index) {
             setState(() {
               _currentImageIndex = index;
             });
           },
           itemBuilder: (context, index) {
-            final imagePath = widget.finca.imagenes[index];
-            return _buildImage(imagePath);
+            final imagen = imagenes[index];
+            return _buildImage(imagen.urlImagen);
           },
         ),
 
         // Indicadores de página
-        if (widget.finca.imagenes.length > 1)
+        if (imagenes.length > 1)
           Positioned(
             bottom: 16,
             left: 0,
             right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: widget.finca.imagenes.asMap().entries.map((entry) {
+              children: imagenes.asMap().entries.map((entry) {
                 return Container(
                   width: 8,
                   height: 8,
@@ -235,20 +275,76 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
   }
 
   Widget _buildImage(String imagePath) {
+    print(
+      '🖼️ Intentando cargar imagen: ${imagePath.substring(0, imagePath.length > 100 ? 100 : imagePath.length)}...',
+    );
+
+    if (imagePath.isEmpty) {
+      print('⚠️ URL de imagen vacía');
+      return Container(
+        color: AppColors.primary.withOpacity(0.1),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.image_not_supported,
+                size: 80,
+                color: AppColors.primary,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Sin imagen',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (imagePath.startsWith('data:image/') || imagePath.startsWith('http')) {
       return Image.network(
         imagePath,
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            print('✅ Imagen cargada exitosamente');
+            return child;
+          }
+          final progress = loadingProgress.expectedTotalBytes != null
+              ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+              : null;
+          print(
+            '📥 Cargando imagen: ${progress != null ? (progress * 100).toStringAsFixed(0) : "?"}%',
+          );
+          return Center(child: CircularProgressIndicator(value: progress));
+        },
         errorBuilder: (context, error, stackTrace) {
+          print('❌ Error al cargar imagen: $error');
           return Container(
             color: AppColors.primary.withOpacity(0.1),
-            child: const Center(
-              child: Icon(
-                Icons.broken_image_outlined,
-                size: 80,
-                color: AppColors.primary,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.broken_image_outlined,
+                    size: 80,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Error al cargar imagen',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -256,6 +352,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       );
     }
 
+    print('⚠️ Formato de imagen no reconocido');
     return Container(
       color: AppColors.primary.withOpacity(0.1),
       child: const Center(
@@ -281,7 +378,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                _getTipoFincaString(widget.finca.tipo),
+                'Finca', // TODO: Agregar tipo de finca cuando el backend lo soporte
                 style: TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w600,
@@ -290,31 +387,32 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
               ),
             ),
             const Spacer(),
-            Row(
-              children: [
-                Icon(Icons.star, color: Colors.amber[600], size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  widget.finca.calificacion.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  ' (${widget.finca.numeroReviews} reviews)',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
+            // TODO: Calificaciones - pendiente de implementar en backend
+            // Row(
+            //   children: [
+            //     Icon(Icons.star, color: Colors.amber[600], size: 20),
+            //     const SizedBox(width: 4),
+            //     Text(
+            //       '0.0',
+            //       style: const TextStyle(
+            //         fontWeight: FontWeight.w600,
+            //         fontSize: 16,
+            //       ),
+            //     ),
+            //     Text(
+            //       ' (0 reviews)',
+            //       style: TextStyle(
+            //         color: AppColors.textSecondary,
+            //         fontSize: 14,
+            //       ),
+            //     ),
+            //   ],
+            // ),
           ],
         ),
         const SizedBox(height: 12),
         Text(
-          widget.finca.titulo,
+          widget.finca.nombre,
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -360,31 +458,34 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildInfoItem(
-                  Icons.people_outline,
-                  'Huéspedes',
-                  '${widget.finca.capacidadMaxima}',
-                ),
-                _buildInfoItem(
-                  Icons.bed_outlined,
-                  'Habitaciones',
-                  '${widget.finca.numeroHabitaciones}',
-                ),
-                _buildInfoItem(
-                  Icons.bathroom_outlined,
-                  'Baños',
-                  '${widget.finca.numeroBanos}',
-                ),
-              ],
-            ),
+            // TODO: Información adicional - pendiente de implementar en backend
+            // Row(
+            //   children: [
+            //     _buildInfoItem(
+            //       Icons.people_outline,
+            //       'Huéspedes',
+            //       '0', // capacidadMaxima
+            //     ),
+            //     _buildInfoItem(
+            //       Icons.bed_outlined,
+            //       'Habitaciones',
+            //       '0', // numeroHabitaciones
+            //     ),
+            //     _buildInfoItem(
+            //       Icons.bathroom_outlined,
+            //       'Baños',
+            //       '0', // numeroBanos
+            //     ),
+            //   ],
+            // ),
           ],
         ),
       ),
     );
   }
 
+  // TODO: Info items (huéspedes, habitaciones, baños) - pendiente de implementar en backend
+  /*
   Widget _buildInfoItem(IconData icon, String label, String value) {
     return Expanded(
       child: Column(
@@ -408,6 +509,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       ),
     );
   }
+  */
 
   Widget _buildDescriptionSection() {
     return Column(
@@ -450,6 +552,30 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
         Wrap(
           spacing: 12,
           runSpacing: 12,
+          children: (widget.finca.amenidades ?? []).map((amenidad) {
+            final nombre = amenidad.nombre;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Text(
+                nombre,
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        /* OLD CODE - comentado para usar amenidades del backend
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: widget.finca.servicios.map((servicio) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -480,10 +606,13 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
             );
           }).toList(),
         ),
+        */
       ],
     );
   }
 
+  // TODO: Actividades - pendiente de implementar en backend
+  /* 
   Widget _buildActivitiesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,6 +662,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       ],
     );
   }
+  */
 
   Widget _buildLocationSection() {
     return Column(
@@ -566,7 +696,7 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${widget.finca.ciudad}, ${widget.finca.departamento}',
+                    widget.finca.ubicacion, // Usar ubicacion directamente
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -602,6 +732,8 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
     );
   }
 
+  // TODO: Reglas - pendiente de implementar en backend
+  /*
   Widget _buildRulesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,7 +799,10 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       ],
     );
   }
+  */
 
+  // TODO: Reseñas/Reviews - pendiente de implementar en backend
+  /*
   Widget _buildReviewsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,7 +903,10 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       ],
     );
   }
+  */
 
+  // TODO: TipoFinca - pendiente de implementar en backend
+  /*
   String _getTipoFincaString(TipoFinca tipo) {
     switch (tipo) {
       case TipoFinca.casa:
@@ -787,7 +925,10 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
         return 'Glamping';
     }
   }
+  */
 
+  // TODO: Service Icons - pendiente de implementar en backend
+  /*
   IconData _getServiceIcon(String servicio) {
     switch (servicio.toLowerCase()) {
       case 'piscina':
@@ -820,7 +961,10 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
         return Icons.check_circle_outline;
     }
   }
+  */
 
+  // TODO: Activity Icons - pendiente de implementar en backend
+  /*
   IconData _getActivityIcon(String actividad) {
     switch (actividad.toLowerCase()) {
       case 'senderismo':
@@ -844,5 +988,129 @@ class _FincaDetailScreenState extends State<FincaDetailScreen> {
       default:
         return Icons.local_activity_outlined;
     }
+  }
+  */
+
+  // ==================== SECCIÓN DE RESEÑAS ====================
+
+  Widget _buildReviewsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        const Text(
+          'Reseñas y calificaciones',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        // Estadísticas o loading
+        if (_isLoadingResenas)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_estadisticas != null) ...[
+          // Mostrar estadísticas
+          EstadisticasResenasWidget(estadisticas: _estadisticas!),
+          const SizedBox(height: 24),
+
+          // Filtros (opcional)
+          if (_estadisticas!.totalResenas > 0) ...[
+            Row(
+              children: [
+                Text(
+                  'Mostrando ${_resenas.length} ${_resenas.length == 1 ? 'reseña' : 'reseñas'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                // TODO: Agregar botón de filtros si se necesita
+                // TextButton.icon(
+                //   onPressed: () {
+                //     // Mostrar filtros
+                //   },
+                //   icon: const Icon(Icons.filter_list, size: 18),
+                //   label: const Text('Filtrar'),
+                // ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Lista de reseñas
+            ..._resenas.map((resena) {
+              return ResenaCard(
+                resena: resena,
+                mostrarUsuario: true,
+                mostrarFinca: false,
+              );
+            }),
+
+            // Botón para ver todas las reseñas (si hay muchas)
+            if (_resenas.length > 5)
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    // TODO: Navegar a pantalla con todas las reseñas
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ver todas las reseñas - Próximamente'),
+                      ),
+                    );
+                  },
+                  child: const Text('Ver todas las reseñas'),
+                ),
+              ),
+          ],
+        ] else ...[
+          // No hay reseñas aún
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.rate_review_outlined,
+                  size: 64,
+                  color: AppColors.textSecondary.withOpacity(0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Aún no hay reseñas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '¡Sé el primero en dejar una reseña!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary.withOpacity(0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

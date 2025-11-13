@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../config/api_config.dart';
-import 'user_api_service.dart';
 
 class AuthService {
   // Singleton
@@ -47,7 +46,7 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _authToken = data['token'];
-        
+
         // El backend devuelve los datos del usuario en el mismo nivel del token
         _currentUser = User.fromJson(data);
 
@@ -69,35 +68,38 @@ class AuthService {
   // Registro de nuevo usuario
   Future<AuthResult> register(RegisterRequest request) async {
     print('🔧 AuthService.register() - Iniciando registro');
+    print('  URL: ${ApiConfig.registerUrl}');
     print('  Email: ${request.email}');
     print('  Nombre: ${request.nombre}');
 
     try {
-      // Usar UserApiService en lugar de llamada HTTP directa
-      final userApiService = UserApiService();
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.registerUrl),
+            headers: ApiConfig.headers,
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(ApiConfig.connectTimeout);
 
-      print('🔄 Usando UserApiService para crear usuario...');
+      print('  Status: ${response.statusCode}');
 
-      final user = await userApiService.crearUsuario(
-        nombre: request.nombre,
-        email: request.email,
-        telefono: request.telefono ?? '',
-        password: request.password,
-      );
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        _authToken = data['token'];
 
-      print('✅ Usuario creado con API: ${user.email}');
+        // El backend devuelve token y datos del usuario en el mismo nivel
+        _currentUser = User.fromJson(data);
 
-      // Guardar usuario actual
-      _currentUser = user;
-
-      // TODO: En una implementación real, aquí se obtendría el token del backend
-      _authToken = 'token-simulado-${user.id}';
-
-      print('✅ AuthService.register() completado exitosamente');
-      return AuthResult.success(user);
+        print('✅ Registro exitoso: ${_currentUser!.email}');
+        return AuthResult.success(_currentUser!);
+      } else {
+        final data = jsonDecode(response.body);
+        print('❌ Registro fallido: ${data['message']}');
+        return AuthResult.error(data['message'] ?? 'Error en el registro');
+      }
     } catch (e) {
-      print('❌ Error en AuthService.register(): $e');
-      return AuthResult.error('Error en el registro: ${e.toString()}');
+      print('❌ Error de conexión en registro: $e');
+      return AuthResult.error('Error de conexión: ${e.toString()}');
     }
   }
 
@@ -183,29 +185,45 @@ class AuthService {
     }
   }
 
-  // Actualizar perfil de usuario
-  Future<AuthResult> updateProfile(UpdateProfileRequest request) async {
+  // Actualizar perfil de usuario (usando PUT /api/users/{id})
+  Future<AuthResult> updateProfile({
+    required String nombre,
+    required String email,
+    required String telefono,
+    String? password,
+  }) async {
+    if (_currentUser == null) {
+      return AuthResult.error('No hay usuario autenticado');
+    }
+
     try {
-      // TODO: Implementar endpoint en el backend
-      // final response = await http.put(
-      //   Uri.parse('${ApiConfig.baseUrl}/api/auth/profile'),
-      //   headers: _authHeaders,
-      //   body: jsonEncode(request.toJson()),
-      // );
+      final Map<String, dynamic> data = {
+        'nombre': nombre,
+        'email': email,
+        'telefono': telefono,
+      };
 
-      // final data = jsonDecode(response.body);
+      if (password != null && password.isNotEmpty) {
+        data['password'] = password;
+      }
 
-      // if (response.statusCode == 200) {
-      //   _currentUser = User.fromJson(data['user']);
-      //   return AuthResult.success(_currentUser!);
-      // } else {
-      //   return AuthResult.error(
-      //     data['message'] ?? 'Error al actualizar perfil',
-      //   );
-      // }
+      final response = await http
+          .put(
+            Uri.parse('${ApiConfig.usersUrl}/${_currentUser!.id}'),
+            headers: _authHeaders,
+            body: jsonEncode(data),
+          )
+          .timeout(ApiConfig.receiveTimeout);
 
-      // Simular por ahora
-      return AuthResult.error('Actualización de perfil no implementada aún');
+      if (response.statusCode == 200) {
+        _currentUser = User.fromJson(jsonDecode(response.body));
+        return AuthResult.success(_currentUser!);
+      } else {
+        final errorData = jsonDecode(response.body);
+        return AuthResult.error(
+          errorData['message'] ?? 'Error al actualizar perfil',
+        );
+      }
     } catch (e) {
       return AuthResult.error('Error de conexión: ${e.toString()}');
     }
@@ -306,18 +324,12 @@ class AuthResult {
 
 // Extensión para facilitar el uso
 extension AuthServiceHelpers on AuthService {
-  // Verificar si el usuario es propietario
-  bool get isOwner => currentUser?.tipoUsuario == TipoUsuario.propietario;
-
-  // Verificar si el usuario es huésped
-  bool get isGuest => currentUser?.tipoUsuario == TipoUsuario.huesped;
-
   // Obtener nombre completo del usuario
   String get userFullName {
     final user = currentUser;
-    return user != null ? '${user.nombre} ${user.apellido}' : '';
+    return user?.nombre ?? '';
   }
 
-  // Verificar si el email está verificado
-  bool get isEmailVerified => currentUser?.verificado ?? false;
+  // Verificar si el usuario está activo
+  bool get isUserActive => currentUser?.activo ?? false;
 }

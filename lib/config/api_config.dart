@@ -2,7 +2,8 @@
 /// Maneja todas las URLs y configuraciones del backend
 class ApiConfig {
   // ✅ URL CORRECTA - localhost:8080 (puerto obligatorio para el proyecto)
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl =
+      'https://backfincasmart-production.up.railway.app';
 
   // Headers estándar para todas las peticiones
   static const Map<String, String> headers = {
@@ -54,8 +55,8 @@ class ApiConfig {
   }
 
   // Verificar si la URL es correcta
-  static bool get isLocalhost => baseUrl.contains('localhost:8084');
+  static bool get isLocalhost => baseUrl.contains('localhost:8080');
 
-  // Método para probar conectividad
-  static String get healthCheckUrl => '$baseUrl/actuator/health';
+  // Método para probar conectividad (endpoint de usuarios como health check)
+  static String get healthCheckUrl => '$baseUrl/api/users';
 }

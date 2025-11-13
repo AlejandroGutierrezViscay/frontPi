@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/reserva.dart';
 import '../../services/reserva_service.dart';
+import '../../services/resena_service.dart';
 import '../../widgets/custom_button.dart';
+import '../resena/crear_resena_screen.dart';
 
 class MyReservasScreen extends StatefulWidget {
   const MyReservasScreen({super.key});
@@ -13,8 +15,12 @@ class MyReservasScreen extends StatefulWidget {
 
 class _MyReservasScreenState extends State<MyReservasScreen> {
   final ReservaService _reservaService = ReservaService();
+  final ResenaService _resenaService = ResenaService();
   List<Reserva> _reservas = [];
   bool _isLoading = false;
+
+  // Mapa para guardar si cada reserva ya tiene reseña
+  Map<String, bool> _reservasTienenResena = {};
 
   @override
   void initState() {
@@ -31,6 +37,17 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
       // TODO: Obtener el ID del usuario autenticado
       final usuarioId = 1; // Temporal: usar ID fijo
       final reservas = await _reservaService.obtenerMisReservas(usuarioId);
+
+      // Verificar qué reservas ya tienen reseña (completadas o pasadas)
+      for (var reserva in reservas) {
+        if (reserva.estaCompletada || reserva.esPasada) {
+          final tieneResena = await _resenaService.reservaTieneResena(
+            int.parse(reserva.id),
+          );
+          _reservasTienenResena[reserva.id] = tieneResena;
+        }
+      }
+
       setState(() {
         _reservas = reservas;
         _isLoading = false;
@@ -209,7 +226,7 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Reserva #${reserva.id.substring(0, 8)}',
+                'Reserva #${reserva.id.substring(0, reserva.id.length < 8 ? reserva.id.length : 8)}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -259,9 +276,9 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
           Row(
             children: [
               Icon(Icons.people, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 8),
+              const SizedBox(height: 4),
               Text(
-                '${reserva.numeroHuespedes} huéspedes • ${reserva.numeroNoches} noches',
+                'Reserva confirmada', // TODO: '${reserva.numeroHuespedes} huéspedes • ${reserva.numeroNoches} noches' cuando backend lo soporte
                 style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
             ],
@@ -288,7 +305,8 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
             ],
           ),
 
-          // Contacto
+          // TODO: Contacto - pendiente de implementar en backend
+          /*
           if (reserva.datosContacto.nombreCompleto.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
@@ -325,10 +343,11 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
               ),
             ),
           ],
+          */
 
-          // Botones de acción
-          if (reserva.estado == EstadoReserva.confirmada ||
-              reserva.estado == EstadoReserva.pendiente) ...[
+          // Botones de acción según el estado
+          if (reserva.estado == EstadoReserva.CONFIRMADA ||
+              reserva.estado == EstadoReserva.PENDIENTE) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -369,6 +388,60 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
               ],
             ),
           ],
+
+          // Botón de reseña para reservas completadas O pasadas
+          // Mostrar botón si: 1) Estado es COMPLETADA, o 2) La fecha de fin ya pasó
+          if (reserva.estaCompletada || reserva.esPasada) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: _reservasTienenResena[reserva.id] == true
+                  ? OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ya has reseñado esta reserva'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.check_circle, size: 18),
+                      label: const Text('Reseña publicada'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.success,
+                        side: BorderSide(color: AppColors.success),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: () async {
+                        // Navegar a pantalla de crear reseña
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                CrearResenaScreen(reserva: reserva),
+                          ),
+                        );
+
+                        // Si se creó la reseña, recargar
+                        if (result == true) {
+                          _cargarReservas();
+                        }
+                      },
+                      icon: const Icon(Icons.rate_review, size: 18),
+                      label: const Text('Dejar Reseña'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         ],
       ),
     );
@@ -376,31 +449,27 @@ class _MyReservasScreenState extends State<MyReservasScreen> {
 
   Color _getStatusColor(EstadoReserva estado) {
     switch (estado) {
-      case EstadoReserva.pendiente:
+      case EstadoReserva.PENDIENTE:
         return Colors.orange;
-      case EstadoReserva.confirmada:
+      case EstadoReserva.CONFIRMADA:
         return AppColors.success;
-      case EstadoReserva.cancelada:
+      case EstadoReserva.CANCELADA:
         return AppColors.error;
-      case EstadoReserva.completada:
+      case EstadoReserva.COMPLETADA:
         return Colors.blue;
-      default:
-        return AppColors.textSecondary;
     }
   }
 
   String _getStatusText(EstadoReserva estado) {
     switch (estado) {
-      case EstadoReserva.pendiente:
+      case EstadoReserva.PENDIENTE:
         return 'Pendiente';
-      case EstadoReserva.confirmada:
+      case EstadoReserva.CONFIRMADA:
         return 'Confirmada';
-      case EstadoReserva.cancelada:
+      case EstadoReserva.CANCELADA:
         return 'Cancelada';
-      case EstadoReserva.completada:
+      case EstadoReserva.COMPLETADA:
         return 'Completada';
-      default:
-        return 'Desconocido';
     }
   }
 

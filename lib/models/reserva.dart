@@ -1,146 +1,127 @@
-// Modelo para una reserva de finca
+/// Modelo Reserva adaptado al backend de FincaSmart
+/// Backend: Reserva { id, usuario, finca, fechaInicio, fechaFin, precioTotal, estado }
 class Reserva {
   final String id;
-  final String fincaId;
-  final String usuarioId;
+  final Map<String, dynamic>? usuario; // {id, nombre, email, telefono}
+  final Map<String, dynamic>? finca; // {id, nombre, ubicacion, precioPorNoche}
   final DateTime fechaInicio;
   final DateTime fechaFin;
-  final int numeroHuespedes;
   final double precioTotal;
-  final double precioNoche;
-  final int numeroNoches;
   final EstadoReserva estado;
-  final DateTime fechaCreacion;
-  final DateTime? fechaCancelacion;
-  final String? motivoCancelacion;
-  final String? notasEspeciales;
-  final DatosContacto datosContacto;
-  final List<String>? serviciosAdicionales;
 
   const Reserva({
     required this.id,
-    required this.fincaId,
-    required this.usuarioId,
+    this.usuario,
+    this.finca,
     required this.fechaInicio,
     required this.fechaFin,
-    required this.numeroHuespedes,
     required this.precioTotal,
-    required this.precioNoche,
-    required this.numeroNoches,
     required this.estado,
-    required this.fechaCreacion,
-    this.fechaCancelacion,
-    this.motivoCancelacion,
-    this.notasEspeciales,
-    required this.datosContacto,
-    this.serviciosAdicionales,
   });
 
+  // Factory constructor para crear desde JSON del backend
   factory Reserva.fromJson(Map<String, dynamic> json) {
     return Reserva(
-      id: json['id'] as String,
-      fincaId: json['fincaId'] as String,
-      usuarioId: json['usuarioId'] as String,
+      id: json['id'].toString(),
+      usuario: json['usuario'] as Map<String, dynamic>?,
+      finca: json['finca'] as Map<String, dynamic>?,
       fechaInicio: DateTime.parse(json['fechaInicio'] as String),
       fechaFin: DateTime.parse(json['fechaFin'] as String),
-      numeroHuespedes: json['numeroHuespedes'] as int,
       precioTotal: (json['precioTotal'] as num).toDouble(),
-      precioNoche: (json['precioNoche'] as num).toDouble(),
-      numeroNoches: json['numeroNoches'] as int,
       estado: EstadoReserva.values.firstWhere(
-        (estado) => estado.name == json['estado'],
-        orElse: () => EstadoReserva.pendiente,
+        (e) => e.name.toUpperCase() == (json['estado'] as String).toUpperCase(),
+        orElse: () => EstadoReserva.PENDIENTE,
       ),
-      fechaCreacion: DateTime.parse(json['fechaCreacion'] as String),
-      fechaCancelacion: json['fechaCancelacion'] != null
-          ? DateTime.parse(json['fechaCancelacion'] as String)
-          : null,
-      motivoCancelacion: json['motivoCancelacion'] as String?,
-      notasEspeciales: json['notasEspeciales'] as String?,
-      datosContacto: DatosContacto.fromJson(json['datosContacto']),
-      serviciosAdicionales: json['serviciosAdicionales'] != null
-          ? List<String>.from(json['serviciosAdicionales'] as List)
-          : null,
     );
   }
 
+  // Método para convertir a JSON (para enviar al backend al CREAR)
+  // Backend espera: { usuario: {id: x}, finca: {id: y}, fechaInicio, fechaFin, estado }
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'fincaId': fincaId,
-      'usuarioId': usuarioId,
-      'fechaInicio': fechaInicio.toIso8601String(),
-      'fechaFin': fechaFin.toIso8601String(),
-      'numeroHuespedes': numeroHuespedes,
-      'precioTotal': precioTotal,
-      'precioNoche': precioNoche,
-      'numeroNoches': numeroNoches,
+      'usuario': {'id': usuarioId},
+      'finca': {'id': fincaId},
+      'fechaInicio': _formatDate(fechaInicio),
+      'fechaFin': _formatDate(fechaFin),
       'estado': estado.name,
-      'fechaCreacion': fechaCreacion.toIso8601String(),
-      'fechaCancelacion': fechaCancelacion?.toIso8601String(),
-      'motivoCancelacion': motivoCancelacion,
-      'notasEspeciales': notasEspeciales,
-      'datosContacto': datosContacto.toJson(),
-      'serviciosAdicionales': serviciosAdicionales,
     };
   }
 
-  Reserva copyWith({
-    String? id,
-    String? fincaId,
-    String? usuarioId,
-    DateTime? fechaInicio,
-    DateTime? fechaFin,
-    int? numeroHuespedes,
-    double? precioTotal,
-    double? precioNoche,
-    int? numeroNoches,
-    EstadoReserva? estado,
-    DateTime? fechaCreacion,
-    DateTime? fechaCancelacion,
-    String? motivoCancelacion,
-    String? notasEspeciales,
-    DatosContacto? datosContacto,
-    List<String>? serviciosAdicionales,
-  }) {
-    return Reserva(
-      id: id ?? this.id,
-      fincaId: fincaId ?? this.fincaId,
-      usuarioId: usuarioId ?? this.usuarioId,
-      fechaInicio: fechaInicio ?? this.fechaInicio,
-      fechaFin: fechaFin ?? this.fechaFin,
-      numeroHuespedes: numeroHuespedes ?? this.numeroHuespedes,
-      precioTotal: precioTotal ?? this.precioTotal,
-      precioNoche: precioNoche ?? this.precioNoche,
-      numeroNoches: numeroNoches ?? this.numeroNoches,
-      estado: estado ?? this.estado,
-      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
-      fechaCancelacion: fechaCancelacion ?? this.fechaCancelacion,
-      motivoCancelacion: motivoCancelacion ?? this.motivoCancelacion,
-      notasEspeciales: notasEspeciales ?? this.notasEspeciales,
-      datosContacto: datosContacto ?? this.datosContacto,
-      serviciosAdicionales: serviciosAdicionales ?? this.serviciosAdicionales,
-    );
+  // Método para actualizar
+  Map<String, dynamic> toJsonUpdate() {
+    return {
+      'usuario': {'id': usuarioId},
+      'finca': {'id': fincaId},
+      'fechaInicio': _formatDate(fechaInicio),
+      'fechaFin': _formatDate(fechaFin),
+      'estado': estado.name,
+    };
+  }
+
+  // Formatear fecha como YYYY-MM-DD (LocalDate en Java)
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   // Getters útiles
-  Duration get duracion => fechaFin.difference(fechaInicio);
-  bool get estaCancelada => estado == EstadoReserva.cancelada;
-  bool get estaConfirmada => estado == EstadoReserva.confirmada;
-  bool get estaPendiente => estado == EstadoReserva.pendiente;
-  bool get estaCompletada => estado == EstadoReserva.completada;
+  String get usuarioId => usuario?['id']?.toString() ?? '';
+  String get usuarioNombre => usuario?['nombre'] as String? ?? 'Desconocido';
+  String get usuarioEmail => usuario?['email'] as String? ?? '';
 
-  String get fechasFormateadas {
-    final formato = 'dd/MM/yyyy';
-    return '${_formatearFecha(fechaInicio, formato)} - ${_formatearFecha(fechaFin, formato)}';
+  String get fincaId => finca?['id']?.toString() ?? '';
+  String get fincaNombre => finca?['nombre'] as String? ?? 'Desconocida';
+  String get fincaUbicacion => finca?['ubicacion'] as String? ?? '';
+
+  int get numeroNoches => fechaFin.difference(fechaInicio).inDays;
+
+  double get precioPorNoche {
+    if (numeroNoches <= 0) return 0;
+    return precioTotal / numeroNoches;
   }
 
-  String _formatearFecha(DateTime fecha, String formato) {
-    // Implementación simple, en producción usarías intl package
+  bool get estaPendiente => estado == EstadoReserva.PENDIENTE;
+  bool get estaConfirmada => estado == EstadoReserva.CONFIRMADA;
+  bool get estaCancelada => estado == EstadoReserva.CANCELADA;
+  bool get estaCompletada => estado == EstadoReserva.COMPLETADA;
+
+  bool get esActiva => estaConfirmada || estaPendiente;
+  bool get esFutura => fechaInicio.isAfter(DateTime.now());
+  bool get esPasada => fechaFin.isBefore(DateTime.now());
+  bool get estaEnCurso {
+    final ahora = DateTime.now();
+    return ahora.isAfter(fechaInicio) && ahora.isBefore(fechaFin);
+  }
+
+  String get fechasFormateadas {
+    return '${_formatearFecha(fechaInicio)} - ${_formatearFecha(fechaFin)}';
+  }
+
+  String _formatearFecha(DateTime fecha) {
     return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
   }
 
   String get precioFormateado => '\$${precioTotal.toStringAsFixed(0)}';
+
+  // CopyWith
+  Reserva copyWith({
+    String? id,
+    Map<String, dynamic>? usuario,
+    Map<String, dynamic>? finca,
+    DateTime? fechaInicio,
+    DateTime? fechaFin,
+    double? precioTotal,
+    EstadoReserva? estado,
+  }) {
+    return Reserva(
+      id: id ?? this.id,
+      usuario: usuario ?? this.usuario,
+      finca: finca ?? this.finca,
+      fechaInicio: fechaInicio ?? this.fechaInicio,
+      fechaFin: fechaFin ?? this.fechaFin,
+      precioTotal: precioTotal ?? this.precioTotal,
+      estado: estado ?? this.estado,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
@@ -153,150 +134,96 @@ class Reserva {
 
   @override
   String toString() {
-    return 'Reserva(id: $id, fincaId: $fincaId, fechas: $fechasFormateadas, estado: ${estado.displayName})';
+    return 'Reserva(id: $id, finca: $fincaNombre, fechas: $fechasFormateadas, estado: ${estado.name})';
   }
 }
 
-// Enum para el estado de una reserva
+/// Enum para estados de reserva (debe coincidir con el backend)
+/// Backend: enum EstadoReserva { PENDIENTE, CONFIRMADA, CANCELADA, COMPLETADA }
 enum EstadoReserva {
-  pendiente('Pendiente'),
-  confirmada('Confirmada'),
-  enCurso('En Curso'),
-  completada('Completada'),
-  cancelada('Cancelada');
+  PENDIENTE('Pendiente'),
+  CONFIRMADA('Confirmada'),
+  CANCELADA('Cancelada'),
+  COMPLETADA('Completada');
 
   const EstadoReserva(this.displayName);
   final String displayName;
 }
 
-// Clase para datos de contacto del huésped
-class DatosContacto {
-  final String nombreCompleto;
-  final String telefono;
-  final String email;
-  final String? telefonoEmergencia;
-  final String? nombreEmergencia;
-
-  const DatosContacto({
-    required this.nombreCompleto,
-    required this.telefono,
-    required this.email,
-    this.telefonoEmergencia,
-    this.nombreEmergencia,
-  });
-
-  factory DatosContacto.fromJson(Map<String, dynamic> json) {
-    return DatosContacto(
-      nombreCompleto: json['nombreCompleto'] as String,
-      telefono: json['telefono'] as String,
-      email: json['email'] as String,
-      telefonoEmergencia: json['telefonoEmergencia'] as String?,
-      nombreEmergencia: json['nombreEmergencia'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'nombreCompleto': nombreCompleto,
-      'telefono': telefono,
-      'email': email,
-      'telefonoEmergencia': telefonoEmergencia,
-      'nombreEmergencia': nombreEmergencia,
-    };
-  }
-
-  DatosContacto copyWith({
-    String? nombreCompleto,
-    String? telefono,
-    String? email,
-    String? telefonoEmergencia,
-    String? nombreEmergencia,
-  }) {
-    return DatosContacto(
-      nombreCompleto: nombreCompleto ?? this.nombreCompleto,
-      telefono: telefono ?? this.telefono,
-      email: email ?? this.email,
-      telefonoEmergencia: telefonoEmergencia ?? this.telefonoEmergencia,
-      nombreEmergencia: nombreEmergencia ?? this.nombreEmergencia,
-    );
-  }
-}
-
-// Clase para crear una nueva reserva
-class NuevaReserva {
+/// Clase para crear una nueva reserva
+class NuevaReservaRequest {
+  final String usuarioId;
   final String fincaId;
   final DateTime fechaInicio;
   final DateTime fechaFin;
-  final int numeroHuespedes;
-  final String? notasEspeciales;
-  final DatosContacto datosContacto;
-  final List<String>? serviciosAdicionales;
 
-  const NuevaReserva({
+  const NuevaReservaRequest({
+    required this.usuarioId,
     required this.fincaId,
     required this.fechaInicio,
     required this.fechaFin,
-    required this.numeroHuespedes,
-    this.notasEspeciales,
-    required this.datosContacto,
-    this.serviciosAdicionales,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'fincaId': fincaId,
-      'fechaInicio': fechaInicio.toIso8601String(),
-      'fechaFin': fechaFin.toIso8601String(),
-      'numeroHuespedes': numeroHuespedes,
-      'notasEspeciales': notasEspeciales,
-      'datosContacto': datosContacto.toJson(),
-      'serviciosAdicionales': serviciosAdicionales,
+      'usuario': {'id': int.parse(usuarioId)},
+      'finca': {'id': int.parse(fincaId)},
+      'fechaInicio': _formatDate(fechaInicio),
+      'fechaFin': _formatDate(fechaFin),
+      'estado': 'PENDIENTE',
     };
   }
 
-  // Calcular el número de noches
-  int get numeroNoches => fechaFin.difference(fechaInicio).inDays;
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
 
   // Validaciones
   bool get fechasValidas => fechaFin.isAfter(fechaInicio);
-  bool get esReservaFutura => fechaInicio.isAfter(DateTime.now());
+  bool get noEsPasado => fechaInicio.isAfter(DateTime.now());
+  int get numeroNoches => fechaFin.difference(fechaInicio).inDays;
+  bool get duracionMinima => numeroNoches >= 1;
+
+  bool get esValida => fechasValidas && noEsPasado && duracionMinima;
+
+  List<String> get errores {
+    final errores = <String>[];
+
+    if (!fechasValidas) {
+      errores.add('La fecha de fin debe ser posterior a la fecha de inicio');
+    }
+    if (!noEsPasado) {
+      errores.add('La fecha de inicio debe ser futura');
+    }
+    if (!duracionMinima) {
+      errores.add('La reserva debe ser de al menos 1 noche');
+    }
+
+    return errores;
+  }
 }
 
-// Clase para el resumen de una reserva
-class ResumenReserva {
+/// Clase para verificar disponibilidad
+class DisponibilidadRequest {
   final String fincaId;
-  final String tituloFinca;
-  final String imagenFinca;
   final DateTime fechaInicio;
   final DateTime fechaFin;
-  final int numeroNoches;
-  final int numeroHuespedes;
-  final double precioNoche;
-  final double precioTotal;
-  final List<String>? serviciosAdicionales;
 
-  const ResumenReserva({
+  const DisponibilidadRequest({
     required this.fincaId,
-    required this.tituloFinca,
-    required this.imagenFinca,
     required this.fechaInicio,
     required this.fechaFin,
-    required this.numeroNoches,
-    required this.numeroHuespedes,
-    required this.precioNoche,
-    required this.precioTotal,
-    this.serviciosAdicionales,
   });
 
-  String get fechasFormateadas {
-    final formato = 'dd/MM/yyyy';
-    return '${_formatearFecha(fechaInicio, formato)} - ${_formatearFecha(fechaFin, formato)}';
+  Map<String, String> toQueryParams() {
+    return {
+      'fincaId': fincaId,
+      'fechaInicio': _formatDate(fechaInicio),
+      'fechaFin': _formatDate(fechaFin),
+    };
   }
 
-  String _formatearFecha(DateTime fecha, String formato) {
-    return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
-
-  String get precioTotalFormateado => '\$${precioTotal.toStringAsFixed(0)}';
-  String get precioNocheFormateado => '\$${precioNoche.toStringAsFixed(0)}';
 }
